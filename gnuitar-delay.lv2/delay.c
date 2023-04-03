@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "definitions.h"
 
 #define URI "http://shaji.in/plugins/gnuitar-delay"
 #define MAX_STEP 65000
@@ -34,10 +35,11 @@ typedef struct {
   float * repeat;
   const float* input;
   float * start ;
-  float * idelay ;
+  int * idelay ;
   float * history ;
-  float * step ;
+  int * step ;
   float*       output;
+  int index ;
 } Delay;
 
 /**
@@ -70,7 +72,9 @@ instantiate(const LV2_Descriptor*     descriptor,
     *delay->start = 11300;
     *delay->step = 11300;
     *delay->repeat = 8;
+    delay -> index = 0 ;
 
+    memset(delay->history, 0, MAX_SIZE);
     memset(delay->idelay, 0, MAX_COUNT * sizeof(int));
 
   return (LV2_Handle)delay;
@@ -84,7 +88,7 @@ instantiate(const LV2_Descriptor*     descriptor,
    This method is in the ``audio'' threading class, and is called in the same
    context as run().
 */
-static void
+static vodi
 connect_port(LV2_Handle instance, uint32_t port, void* data)
 {
   Delay* delay = (Delay*)instance;
@@ -130,17 +134,61 @@ activate(LV2_Handle instance)
 static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
-  const Delay* delay = (const Delay*)instance;
+  Delay* delay = (const Delay*)instance;
 
   const float        time = *delay -> time ;
   const float        repeat = *delay -> repeat ;
   const float        decay = *delay -> decay ;
-  const float* const input  = delay->input;
-  float* const       output = delay->output;
+  float*             input  = delay->input;
+  float*             output = delay->output;
+
+    int             i ;
+    float                current_decay;
+    float     *s;
 
   for (uint32_t pos = 0; pos < n_samples; pos++) {
+      /*
+       * add sample to history 
+       */
+      // history [1] = <input signal [0]>
+      delay->history[delay->index++] = delay ->input [0];
+      //~ output[pos] = input [pos];
+      /*
+       * wrap around 
+       */
+      // if index == 480
+      if (delay->index == time)
+          delay->index = 0;
 
+      // current decay = 55
+      current_decay = decay;
+      // if repeat < 4
+      for (i = 0; i < delay->repeat; i++) {
+        // this is one iteration of the delay
+          // index = 1, idelay[i] = 0
+          if (delay->index >= delay->idelay[i]) {
+            // this will get executed first
+            // 1 - 0 == 11300 + 0 * 11300
+            // idelay[i] this does not point to memory but keps an index of that which will form reverb
+            if (delay->index - delay->idelay[i] ==
+                delay->start + i * *delay->step)
+                delay->idelay[i]++;
+              } else if (delay->time + delay->index - delay->idelay[i] ==
+                   delay->start + i * *delay->step) {
+                      // 480 + 1 - 0  == 11300 + 0 * 11300
+                      delay->idelay[i]++;
+          }
+          
+          if (delay->idelay[i] == delay->time)
+            delay->idelay[i] = 0;
+          
+          output [pos] += delay->history[delay->idelay[i]] * current_decay / 1000;
+          current_decay = current_decay * *delay->decay / 1000;
+          //~ output [pos] = input [pos];
+      }
   }
+
+
 }
 
 /**
