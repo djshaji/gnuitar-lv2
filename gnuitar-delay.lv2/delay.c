@@ -8,7 +8,7 @@
 
 #define URI "http://shaji.in/plugins/gnuitar-delay"
 #define MAX_STEP 65000
-#define MAX_COUNT 10
+#define MAX_COUNT 1025
 #define MAX_SIZE (MAX_STEP*MAX_COUNT)
 
 /**
@@ -30,14 +30,14 @@ typedef enum {
 */
 typedef struct {
   // Port buffers
-  float * time;
-  float * decay; 
-  float * repeat;
+    int             delay_size,	/* length of history */
+                    delay_decay,	/* volume of processed signal */
+                    delay_start,
+                    delay_step,
+                   *idelay,
+                    delay_count;	/* number of repeats */
   const float* input;
-  float * start ;
-  int * idelay ;
   float * history ;
-  int * step ;
   float*       output;
   int index ;
 } Delay;
@@ -60,21 +60,19 @@ instantiate(const LV2_Descriptor*     descriptor,
 {
   Delay* delay = (Delay*)calloc(1, sizeof(Delay));
     delay -> history = (float *) malloc(MAX_SIZE * sizeof(float));
-    delay ->start = (float *) malloc(MAX_SIZE * sizeof(float));
-    delay ->step = (float *) malloc(MAX_SIZE * sizeof(float));
     delay ->idelay = (int *) malloc(MAX_COUNT * sizeof(int));
-    delay ->time = (int *) malloc(MAX_COUNT * sizeof(int));
-    delay ->repeat = (int *) malloc(MAX_COUNT * sizeof(int));
-    delay ->decay = (int *) malloc(MAX_COUNT * sizeof(int));
 
-    *delay ->time = MAX_SIZE;
-    *delay->decay = 550;
-    *delay->start = 11300;
-    *delay->step = 11300;
-    *delay->repeat = 8;
+    //~ new_time = (int) adj->value * sample_rate * nchannels / 1000;
+
+    //~ delay ->delay_size = MAX_SIZE;
+    delay->delay_size = 480 * 48000 /*sample rate */  * 2 / 1000;
+    delay->delay_decay = 550;
+    delay->delay_start = 11300;
+    delay->delay_step = 11300;
+    delay->delay_count = 8;
     delay -> index = 0 ;
 
-    memset(delay->history, 0, MAX_SIZE);
+    memset(delay->history, 0, MAX_SIZE * sizeof(float));
     memset(delay->idelay, 0, MAX_COUNT * sizeof(int));
 
   return (LV2_Handle)delay;
@@ -95,13 +93,13 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
 
   switch ((PortIndex)port) {
   case TIME:
-    delay->time = (const float*)data;
+    delay->delay_size = (const float*)data;
     break;
   case REPEAT:
-    delay->repeat = (const float*)data;
+    delay->delay_count = (const float*)data;
     break;
   case DECAY:
-    delay->decay = (const float*)data;
+    delay->delay_decay = (const float*)data;
     break;
   case INPUT:
     delay->input = (const float*)data;
@@ -134,62 +132,54 @@ activate(LV2_Handle instance)
 static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
-  Delay* delay = (const Delay*)instance;
+  Delay* dp = (const Delay*)instance;
 
-  const float        time = *delay -> time ;
-  const float        repeat = *delay -> repeat ;
-  const float        decay = *delay -> decay ;
-  float*             input  = delay->input;
-  float*             output = delay->output;
 
-    int             i ;
-    float                current_decay;
-    float     *s;
+    int             i, count, pos = 0 ;
+    int                current_decay;
+    float     *s = dp -> input ;
 
-  for (uint32_t pos = 0; pos < n_samples; pos++) {
+    count = n_samples;
+
+    while (count) {
+        dp -> output [pos] = dp -> input [pos];
       /*
        * add sample to history 
        */
-      // history [1] = <input signal [0]>
-      delay->history[delay->index++] = delay ->input [0];
-      //~ output[pos] = input [pos];
+      dp->history[dp->index++] = *s;
       /*
        * wrap around 
        */
-      // if index == 480
-      if (delay->index == time)
-          delay->index = 0;
+      if (dp->index == dp->delay_size)
+          dp->index = 0;
 
-      // current decay = 55
-      current_decay = decay;
-      // if repeat < 4
-      for (i = 0; i < delay->repeat; i++) {
-        // this is one iteration of the delay
-          // index = 1, idelay[i] = 0
-          if (delay->index >= delay->idelay[i]) {
-            // this will get executed first
-            // 1 - 0 == 11300 + 0 * 11300
-            // idelay[i] this does not point to memory but keps an index of that which will form reverb
-            if (delay->index - delay->idelay[i] ==
-                delay->start + i * *delay->step)
-                delay->idelay[i]++;
-              } else if (delay->time + delay->index - delay->idelay[i] ==
-                   delay->start + i * *delay->step) {
-                      // 480 + 1 - 0  == 11300 + 0 * 11300
-                      delay->idelay[i]++;
+      current_decay = dp->delay_decay;
+      for (i = 0; i < dp->delay_count; i++) {
+          if (i > MAX_COUNT)
+            break ;
+          if (dp->index >= dp->idelay[i]) {
+            if (dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step)
+                  dp->idelay[i]++;
+          } else if (dp->delay_size + dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step) {
+                  dp->idelay[i]++;
           }
           
-          if (delay->idelay[i] == delay->time)
-            delay->idelay[i] = 0;
-          
-          output [pos] += delay->history[delay->idelay[i]] * current_decay / 1000;
-          current_decay = current_decay * *delay->decay / 1000;
-          //~ output [pos] = input [pos];
-      }
-  }
+          if (dp->idelay[i] == dp->delay_size)
+            dp->idelay[i] = 0;
 
+          dp->output [pos] += dp->history[dp->idelay[i]] * current_decay / 1000;
+          current_decay = current_decay * dp->delay_decay / 1000;
+      }
+      //~ dp -> output [pos] = *s ;
+      pos ++ ;
+      s ++ ;
+      count--;
+    }
 
 }
+
+
+
 
 /**
    The `deactivate()` method is the counterpart to `activate()`, and is called
