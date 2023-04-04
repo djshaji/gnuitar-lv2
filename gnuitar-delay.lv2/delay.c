@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "definitions.h"
+#include "lv2/log/log.h"
+#include "lv2/log/logger.h"
 
 #define URI "http://shaji.in/plugins/gnuitar-delay"
 #define MAX_STEP 65000
@@ -30,6 +32,9 @@ typedef enum {
 */
 typedef struct {
   // Port buffers
+    LV2_URID_Map*  map;
+    LV2_Log_Logger logger;
+
     int             delay_size,	/* length of history */
                     delay_decay,	/* volume of processed signal */
                     delay_start,
@@ -74,6 +79,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     memset(delay->history, 0, MAX_SIZE * sizeof(float));
     memset(delay->idelay, 0, MAX_COUNT * sizeof(int));
+  
 
   return (LV2_Handle)delay;
 }
@@ -121,7 +127,19 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
 */
 static void
 activate(LV2_Handle instance)
-{}
+{
+    Delay *delay = (Delay *) instance;
+    delay->delay_size = 480 * 48000 /*sample rate */  * 2 / 1000;
+    delay->delay_decay = 550;
+    delay->delay_start = 11300;
+    delay->delay_step = 11300;
+    delay->delay_count = 8;
+    delay -> index = 0 ;
+
+    memset(delay->history, 0, MAX_SIZE * sizeof(float));
+    memset(delay->idelay, 0, MAX_COUNT * sizeof(int));
+  
+}
 
 /**
    The `run()` method is the main process function of the plugin.  It processes
@@ -133,6 +151,13 @@ static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
   Delay* dp = (const Delay*)instance;
+  /*
+    fprintf (stderr,
+        "size: %d\t\tcount: %d\n",
+        dp -> delay_size, 
+        dp -> delay_count
+    );
+    */
 
 
     int             i, count, pos = 0 ;
@@ -156,19 +181,24 @@ run(LV2_Handle instance, uint32_t n_samples)
       current_decay = dp->delay_decay;
       for (i = 0; i < dp->delay_count; i++) {
           if (dp->index >= dp->idelay[i]) {
-            if (dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step)
+            //~ fprintf (stderr, "dp->index >= dp->idelay[i]");
+            if (dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step) {
                   dp->idelay[i]++;
+                  //~ fprintf (stderr, "dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step");
+              }
           } else if (dp->delay_size + dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step) {
                   dp->idelay[i]++;
+                  //~ fprintf (stderr,"dp->delay_size + dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step");
           }
           
           if (dp->idelay[i] == dp->delay_size)
             dp->idelay[i] = 0;
 
-          dp->output [pos] += dp->history[dp->idelay[i]] * current_decay / 1000;
+          //~ fprintf (stderr, "%d: %d\n", i, dp->idelay[i]);
+          *s += dp->history[dp->idelay[i]] * current_decay / 1000;
           current_decay = current_decay * dp->delay_decay / 1000;
       }
-      //~ dp -> output [pos] = *s ;
+      dp -> output [pos] = *s ;
       pos ++ ;
       s ++ ;
       count--;
