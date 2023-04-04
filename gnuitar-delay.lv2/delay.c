@@ -142,7 +142,7 @@ run(LV2_Handle instance, uint32_t n_samples)
     count = n_samples;
 
     while (count) {
-        dp -> output [pos] = dp -> input [pos];
+        //~ dp -> output [pos] = dp -> input [pos];
       /*
        * add sample to history 
        */
@@ -155,8 +155,6 @@ run(LV2_Handle instance, uint32_t n_samples)
 
       current_decay = dp->delay_decay;
       for (i = 0; i < dp->delay_count; i++) {
-          if (i > MAX_COUNT)
-            break ;
           if (dp->index >= dp->idelay[i]) {
             if (dp->index - dp->idelay[i] == dp->delay_start + i * dp->delay_step)
                   dp->idelay[i]++;
