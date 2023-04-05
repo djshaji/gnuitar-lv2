@@ -31,16 +31,13 @@ typedef enum {
    stored, since there is no additional instance data.
 */
 typedef struct {
-  // Port buffers
-    LV2_URID_Map*  map;
-    LV2_Log_Logger logger;
 
-    int             delay_size,	/* length of history */
-                    delay_decay,	/* volume of processed signal */
-                    delay_start,
+    float             *delay_size,	/* length of history */
+                    *delay_decay,	/* volume of processed signal */
+                    *delay_count;
+    int                delay_start,
                     delay_step,
-                   *idelay,
-                    delay_count;	/* number of repeats */
+                   *idelay;
   const float* input;
   float * history ;
   float*       output;
@@ -66,15 +63,20 @@ instantiate(const LV2_Descriptor*     descriptor,
   Delay* delay = (Delay*)calloc(1, sizeof(Delay));
     delay -> history = (float *) malloc(MAX_SIZE * sizeof(float));
     delay ->idelay = (int *) malloc(MAX_COUNT * sizeof(int));
+    /*
+    delay ->delay_size = (int *) malloc(sizeof(int));
+    delay ->delay_decay = (int *) malloc(sizeof(int));
+    delay ->delay_count = (int *) malloc(sizeof(int));
+    */
 
     //~ new_time = (int) adj->value * sample_rate * nchannels / 1000;
 
     //~ delay ->delay_size = MAX_SIZE;
-    delay->delay_size = 480 * 48000 /*sample rate */  * 2 / 1000;
-    delay->delay_decay = 550;
+    //*delay->delay_size = 480 * 48000 /*sample rate */  * 2 / 1000;
+    //*delay->delay_decay = 550;
     delay->delay_start = 11300;
     delay->delay_step = 11300;
-    delay->delay_count = 8;
+    //*delay->delay_count = 8;
     delay -> index = 0 ;
 
     memset(delay->history, 0, MAX_SIZE * sizeof(float));
@@ -95,14 +97,16 @@ instantiate(const LV2_Descriptor*     descriptor,
 static vodi
 connect_port(LV2_Handle instance, uint32_t port, void* data)
 {
+  if (port != 0 && port != 1)
+    fprintf (stderr, "port: %d\t\tdata: %f\n", port, data) ;
   Delay* delay = (Delay*)instance;
-
   switch ((PortIndex)port) {
   case TIME:
-    delay->delay_size = (const float*)data;
+    //~ delay->delay_size = (const float*)data;
+    delay->delay_size = (const float *) data ;
     break;
   case REPEAT:
-    delay->delay_count = (const float*)data;
+    delay->delay_count = (const float *)data;
     break;
   case DECAY:
     delay->delay_decay = (const float*)data;
@@ -128,8 +132,9 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
 static void
 activate(LV2_Handle instance)
 {
+    /*
     Delay *delay = (Delay *) instance;
-    delay->delay_size = 480 * 48000 /*sample rate */  * 2 / 1000;
+    delay->delay_size = 480 * 48000   * 2 / 1000;
     delay->delay_decay = 550;
     delay->delay_start = 11300;
     delay->delay_step = 11300;
@@ -139,6 +144,7 @@ activate(LV2_Handle instance)
     memset(delay->history, 0, MAX_SIZE * sizeof(float));
     memset(delay->idelay, 0, MAX_COUNT * sizeof(int));
   
+  */
 }
 
 /**
@@ -151,6 +157,12 @@ static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
   Delay* dp = (const Delay*)instance;
+  float delay = *(dp->delay_size),
+  repeat = *(dp->delay_count),
+  decay = *(dp->delay_decay);
+  
+  if (delay != 46080)
+   fprintf (stderr, "size: %d\tcount: %d\tdecay: %d\n", delay, repeat, decay) ;
   /*
     fprintf (stderr,
         "size: %d\t\tcount: %d\n",
@@ -196,7 +208,7 @@ run(LV2_Handle instance, uint32_t n_samples)
 
           //~ fprintf (stderr, "%d: %d\n", i, dp->idelay[i]);
           *s += dp->history[dp->idelay[i]] * current_decay / 1000;
-          current_decay = current_decay * dp->delay_decay / 1000;
+          current_decay = current_decay * (int)dp->delay_decay / 1000;
       }
       dp -> output [pos] = *s ;
       pos ++ ;
