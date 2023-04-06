@@ -21,7 +21,7 @@ typedef struct {
 	float * level ;
 	float *low_pass ;
 	int noisegate ;
-	int sample_rate ;
+	int samplerate ;
 	struct filter_data fd;
     struct filter_data noise;
 	int lastval[MAX_CHANNELS] ;
@@ -35,7 +35,7 @@ instantiate(const LV2_Descriptor*     descriptor,
             const LV2_Feature* const* features)
 {
     Distort * distort = (Distort*)calloc(1, sizeof(Distort));
-    distort -> sample_rate = rate ;
+    distort -> samplerate = rate ;
 	distort -> noisegate = 3000 ; 
 	RC_setup(10, 1.5, &(distort->fd));
 
@@ -124,4 +124,37 @@ run(LV2_Handle instance, uint32_t n_samples)
 	for (int pos = 0 ; pos < n_samples ; pos ++)
 		dp -> output [pos] = s [pos] ;
     LC_filter(dp -> output, n_samples, LOWPASS, low_pass, &(dp->noise));
+}
+
+static void
+deactivate(LV2_Handle instance)
+{}
+
+static void
+cleanup(LV2_Handle instance)
+{
+  free(instance);
+}
+
+static const void*
+extension_data(const char* uri)
+{
+  return NULL;
+}
+
+static const LV2_Descriptor descriptor = {URI,
+                                          instantiate,
+                                          connect_port,
+                                          activate,
+                                          run,
+                                          deactivate,
+                                          cleanup,
+                                          extension_data};
+
+
+LV2_SYMBOL_EXPORT
+const LV2_Descriptor*
+lv2_descriptor(uint32_t index)
+{
+  return index == 0 ? &descriptor : NULL;
 }
