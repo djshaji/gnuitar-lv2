@@ -64,24 +64,32 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
   case SAT:
     plugin->saturation = (float*)data;
     break;
+  case DRIVE:
+    plugin->drive = (float*)data;
+    break;
   case LOW_PASS:
     plugin->low_pass = (float*)data;
-    RC_set_freq(*plugin->low_pass, &(plugin->fd));
+    //fprintf (stderr, "%f\n", (float *)data) ;
+    //RC_set_freq(*plugin->low_pass, &(plugin->fd));
     break;
   }
 }
 
 static void
 activate(LV2_Handle instance)
-{}
+{
+	Distort* plugin = (Distort*)instance;
+    RC_set_freq(*plugin->low_pass, &(plugin->fd));
+	
+}
 
 static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
 	Distort * dp = (Distort *) instance ;
-	float drive = * dp -> drive ;
-	float saturation = * dp -> saturation;
-	float level = * dp -> level ;
+	float drive = * dp -> drive * 10;
+	float saturation = * dp -> saturation * 300 ;
+	float level = * dp -> level * 2.56;
 	float low_pass = * dp -> low_pass ;
 	int             count,
                     currchannel = 0;
