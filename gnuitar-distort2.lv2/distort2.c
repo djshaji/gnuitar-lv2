@@ -38,7 +38,7 @@ instantiate(const LV2_Descriptor*     descriptor,
             const char*               bundle_path,
             const LV2_Feature* const* features)
 {
-    Distort2 * distort = (Distort2*)calloc(1, sizeof(Distort));
+    Distort2 * distort = (Distort2*)calloc(1, sizeof(Distort2));
     distort -> samplerate = rate ;
     distort -> noisegate = 3500 ;
     int         i;
@@ -61,8 +61,8 @@ instantiate(const LV2_Descriptor*     descriptor,
     memset ( (void*) distort->cheb1.mem, 0 , 1 * sizeof (double) * 4 );
 
     /* 2 lowPass Chebyshev filters used in downsampling */
-    CalcChebyshev2(samplerate * UPSAMPLE, 12000, 1, 1, &distort->cheb);
-    CalcChebyshev2(samplerate * UPSAMPLE, 5500, 1, 1, &distort->cheb1);
+    CalcChebyshev2(distort->samplerate * UPSAMPLE, 12000, 1, 1, &distort->cheb);
+    CalcChebyshev2(distort->samplerate * UPSAMPLE, 5500, 1, 1, &distort->cheb1);
 
     return (LV2_Handle)distort;
 }
@@ -87,8 +87,6 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
     break;
   case NOISEGATE:
     plugin->noisegate = (float*)data;
-    RC_set_freq(plugin->noisegate, &(plugin->noise));
-
     break;
   }
 }
@@ -96,9 +94,9 @@ connect_port(LV2_Handle instance, uint32_t port, void* data)
 static void
 activate(LV2_Handle instance)
 {
-    Distort2* plugin = (Distort2*)instance;
+    Distort2* distort = (Distort2*)instance;
     RC_setup(10, 1, &(distort->noise));
-    RC_set_freq(distort->noisegate, &(distort->noise));
+    RC_set_freq(*distort->noisegate, &(distort->noise));
 
 }
 
@@ -107,8 +105,10 @@ run(LV2_Handle instance, uint32_t n_samples)
 {
 	Distort2 * dp = (Distort2 *) instance ;
     float drive =  0 ;
+	RC_set_freq(*dp->noisegate, &(dp->noise));
+
     drive = (int) * dp -> drive * 5000;
-    drive -= drive % 10;
+    drive -= (int) drive % 10;
     drive += 50;
     
     float treble = * dp -> treble ;
@@ -120,6 +120,7 @@ run(LV2_Handle instance, uint32_t n_samples)
     int			i,count;
     static int		curr_channel = 0;
     float 	       *s;
+    int buffer_size_ = 128 ;
     static double	x,y,x1,f,df,dx,e1,e2;
     static double upsample [UPSAMPLE];
 #define DRIVE (drive)
@@ -134,7 +135,7 @@ run(LV2_Handle instance, uint32_t n_samples)
      * If everything is zero, we have a large chances that all array is zero. */
     if(s[0]==0 && s[1]==0 && s[16]==0 && s[17]==0 &&
           s[24]==0 && s[25]==0 && s[32]==0 && s[33]==0 &&
-	  s[buffer_size-1]==0) {
+	  s[buffer_size_-1]==0) {
 	dp->last[0]=dp->last[1]=dp->lastupsample=0;
         return;
     }
@@ -210,8 +211,42 @@ run(LV2_Handle instance, uint32_t n_samples)
 
     }
     if(dp->treble)
-	RC_lowpass(db->data, db->len, &(dp->noise));
+	RC_lowpass(dp->input, n_samples, &(dp->noise));
 #undef DRIVE
     
     
+}
+
+
+static void
+deactivate(LV2_Handle instance)
+{}
+
+static void
+cleanup(LV2_Handle instance)
+{
+  free(instance);
+}
+
+static const void*
+extension_data(const char* uri)
+{
+  return NULL;
+}
+
+static const LV2_Descriptor descriptor = {URI,
+                                          instantiate,
+                                          connect_port,
+                                          activate,
+                                          run,
+                                          deactivate,
+                                          cleanup,
+                                          extension_data};
+
+
+LV2_SYMBOL_EXPORT
+const LV2_Descriptor*
+lv2_descriptor(uint32_t index)
+{
+  return index == 0 ? &descriptor : NULL;
 }

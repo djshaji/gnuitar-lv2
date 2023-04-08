@@ -86,7 +86,7 @@ struct effect_creator {
 #define nchannels 1
 #define sample_rate 48000 
 extern unsigned short bits;
-extern unsigned int buffer_size;
+#define buffer_size 128;
 #ifdef _WIN32
 extern unsigned int nbuffers;
 #endif
