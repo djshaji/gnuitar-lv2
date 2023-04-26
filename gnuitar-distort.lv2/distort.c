@@ -36,13 +36,14 @@ instantiate(const LV2_Descriptor*     descriptor,
 {
     Distort * distort = (Distort*)calloc(1, sizeof(Distort));
     distort -> samplerate = rate ;
-	distort -> noisegate = 3000 ; 
-	RC_setup(10, 1.5, &(distort->fd));
+    distort -> noisegate = 3000 ; 
+    RC_setup(10, 1.5, &(distort->fd));
+    RC_set_freq(350, &(distort->fd));
 
     RC_setup(10, 1, &(distort->noise));
     RC_set_freq(distort->noisegate, &(distort->noise));
     
-    distort -> lastval [0] = 0 ;
+    distort -> lastval [0] = 1 ;
     return (LV2_Handle)distort;
 }
 
@@ -79,7 +80,6 @@ static void
 activate(LV2_Handle instance)
 {
 	Distort* plugin = (Distort*)instance;
-    RC_set_freq(*plugin->low_pass, &(plugin->fd));
 	
 }
 
@@ -99,9 +99,14 @@ run(LV2_Handle instance, uint32_t n_samples)
      * member to store last sample for seamlessness between chunks. 
      */
     count = n_samples;
+    //~ for (int i = 0 ; i < count ; i ++)
+	//~ dp -> output [i] = dp -> input [i] ;
     s = dp -> input;
+    //~ return ;
+    //~ fprintf (stderr, "%f\t%f\t%f\n", drive, saturation, level);
 
-    RC_highpass(dp -> input, n_samples, &(dp->fd));
+    int i = 0 ;
+    //~ RC_highpass(s, n_samples, &(dp->fd));
 
     while (count) {
 		/*
@@ -124,14 +129,13 @@ run(LV2_Handle instance, uint32_t n_samples)
 
 		*s *= level;
 		*s /= 256;
-
+		dp -> output [i] = *s ;
+		i ++ ;
 		s++;
 		count--;
     }
 
-	for (int pos = 0 ; pos < n_samples ; pos ++)
-		dp -> output [pos] = s [pos] ;
-    LC_filter(dp -> output, n_samples, LOWPASS, low_pass, &(dp->noise));
+    LC_filter(s, n_samples, LOWPASS, low_pass, &(dp->noise));
 }
 
 static void
