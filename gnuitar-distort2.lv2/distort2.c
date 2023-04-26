@@ -64,6 +64,8 @@ instantiate(const LV2_Descriptor*     descriptor,
     CalcChebyshev2(distort->samplerate * UPSAMPLE, 12000, 1, 1, &distort->cheb);
     CalcChebyshev2(distort->samplerate * UPSAMPLE, 5500, 1, 1, &distort->cheb1);
 
+    RC_setup(10, 1, &(distort->noise));
+    RC_set_freq(3500, &(distort->noise));
     return (LV2_Handle)distort;
 }
 
@@ -95,8 +97,6 @@ static void
 activate(LV2_Handle instance)
 {
     Distort2* distort = (Distort2*)instance;
-    RC_setup(10, 1, &(distort->noise));
-    RC_set_freq(*distort->noisegate, &(distort->noise));
 
 }
 
@@ -105,19 +105,20 @@ run(LV2_Handle instance, uint32_t n_samples)
 {
 	Distort2 * dp = (Distort2 *) instance ;
     float drive =  0 ;
-	RC_set_freq(*dp->noisegate, &(dp->noise));
-
+    RC_set_freq(*dp->noisegate, &(dp->noise));
+    
     drive = (int) * dp -> drive * 5000;
     drive -= (int) drive % 10;
     drive += 50;
     
     float treble = * dp -> treble ;
+    //~ treble = 0 ;
     float noisegate = * dp -> noisegate ;
     
 #define mUt				  30*1e+2
 #define Is				 10*1e-12
 
-    int			i,count;
+    int			i,count, iter = 0;
     static int		curr_channel = 0;
     float 	       *s;
     int buffer_size_ = 128 ;
@@ -203,6 +204,8 @@ run(LV2_Handle instance, uint32_t n_samples)
 	else if(*s < -MAX_SAMPLE)
 	    *s=-MAX_SAMPLE;*/
 
+	dp -> output [iter] = *s ;
+	iter ++ ;
 	s++;
 	count--;
 
